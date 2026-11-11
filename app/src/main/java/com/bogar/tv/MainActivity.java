@@ -5,13 +5,12 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.widget.*;
-import android.text.Editable;
-import android.text.TextWatcher;
 
 import java.net.*;
 import java.io.*;
@@ -19,117 +18,174 @@ import java.util.*;
 
 public class MainActivity extends Activity {
 
-    LinearLayout root, content;
-    SharedPreferences prefs;
+    final int BG = Color.rgb(12, 18, 32);
+    final int PANEL = Color.rgb(25, 35, 54);
+    final int GOLD = Color.rgb(210, 170, 75);
+    final int WHITE = Color.WHITE;
+    final int MUTED = Color.rgb(170, 184, 205);
+
+    LinearLayout root, content, menu;
+    EditText urlInput;
 
     ArrayList<String> names = new ArrayList<>();
     ArrayList<String> links = new ArrayList<>();
     HashSet<String> favorites = new HashSet<>();
 
-    final int BG = Color.rgb(12, 18, 32);
-    final int PANEL = Color.rgb(25, 35, 55);
-    final int BLUE = Color.rgb(30, 110, 220);
+    String currentPage = "Kanallar";
 
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
 
-        prefs = getSharedPreferences("bogar_tv", MODE_PRIVATE);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+
+        SharedPreferences prefs =
+            getSharedPreferences("bogar_tv", MODE_PRIVATE);
 
         favorites.addAll(
-            prefs.getStringSet("favorites", new HashSet<String>())
+            prefs.getStringSet("favorites", new HashSet<>())
         );
 
         showPage("Kanallar");
-
-        String lastUrl = prefs.getString("playlist_url", "");
-
-        if (!lastUrl.isEmpty()) {
-            loadPlaylist(lastUrl);
-        }
     }
 
-    TextView text(String value, int size) {
+    GradientDrawable shape(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        return d;
+    }
+
+    TextView label(String value, int size, int color) {
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
-        t.setTextColor(Color.WHITE);
-        t.setPadding(16, 16, 16, 16);
+        t.setTextColor(color);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setPadding(16, 12, 16, 12);
         return t;
     }
 
-    Button button(String value) {
-        Button b = new Button(this);
-        b.setText(value);
-        b.setTextColor(Color.WHITE);
-        b.setBackgroundTintList(ColorStateList.valueOf(BLUE));
-        return b;
+    void saveFavorites() {
+        getSharedPreferences("bogar_tv", MODE_PRIVATE)
+            .edit()
+            .putStringSet("favorites", new HashSet<>(favorites))
+            .apply();
     }
 
     void showPage(String page) {
+        currentPage = page;
+
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
         setContentView(root);
 
-        TextView logo = text("BOGAR TV", 27);
-        logo.setGravity(Gravity.CENTER);
-        root.addView(logo);
+        TextView header = label("BOGAR TV", 27, WHITE);
+        header.setGravity(Gravity.CENTER);
+        header.setTypeface(null, Typeface.BOLD);
+        header.setPadding(12, 22, 12, 22);
+        root.addView(header);
 
-        ScrollView scroll = new ScrollView(this);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(10, 8, 10, 8);
+        content.setPadding(16, 8, 16, 16);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         scroll.addView(content);
 
         root.addView(scroll,
             new LinearLayout.LayoutParams(-1, 0, 1));
 
-        LinearLayout menu = new LinearLayout(this);
-        menu.setBackgroundColor(PANEL);
-        root.addView(menu);
-
-        String[] tabs = {
-            "Kanallar", "Listeler", "Favoriler", "Ayarlar"
-        };
-
-        for (String tab : tabs) {
-            Button b = button(tab);
-            b.setTextSize(10);
-            menu.addView(b,
-                new LinearLayout.LayoutParams(0, 55, 1));
-            b.setOnClickListener(v -> showPage(tab));
-        }
-
-        content.addView(text(page, 22));
+        TextView title = label(page, 23, GOLD);
+        title.setTypeface(null, Typeface.BOLD);
+        content.addView(title);
 
         if (page.equals("Kanallar")) showChannels(false);
         if (page.equals("Listeler")) showLists();
         if (page.equals("Favoriler")) showChannels(true);
         if (page.equals("Ayarlar")) showSettings();
+
+        createMenu();
+    }
+
+    void createMenu() {
+        menu = new LinearLayout(this);
+        menu.setOrientation(LinearLayout.HORIZONTAL);
+        menu.setBackgroundColor(PANEL);
+        menu.setPadding(4, 8, 4, 8);
+
+        String[] tabs = {
+            "Kanallar", "Listeler", "Favoriler", "Ayarlar"
+        };
+
+        String[] icons = {"▣", "☷", "★", "⚙"};
+
+        for (int i = 0; i < tabs.length; i++) {
+            final String tab = tabs[i];
+
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setGravity(Gravity.CENTER);
+            item.setPadding(2, 8, 2, 8);
+
+            boolean selected = currentPage.equals(tab);
+
+            TextView icon = label(
+                icons[i], 20, selected ? GOLD : WHITE);
+            icon.setGravity(Gravity.CENTER);
+
+            TextView name = label(
+                tab, 11, selected ? GOLD : WHITE);
+            name.setGravity(Gravity.CENTER);
+            name.setPadding(0, 4, 0, 0);
+
+            item.addView(icon);
+            item.addView(name);
+
+            if (selected) {
+                item.setBackground(shape(
+                    Color.rgb(47, 48, 49), 14));
+            }
+
+            menu.addView(item,
+                new LinearLayout.LayoutParams(0, -2, 1));
+
+            item.setOnClickListener(v -> showPage(tab));
+        }
+
+        root.addView(menu);
     }
 
     void showLists() {
-        content.addView(text(
-            "GitHub RAW veya M3U bağlantısı ekle", 16));
+        content.addView(label(
+            "GitHub RAW veya M3U bağlantısı ekleyin",
+            15, MUTED));
 
-        EditText input = new EditText(this);
-        input.setSingleLine(true);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.LTGRAY);
-        input.setHint("https://raw.githubusercontent.com/...");
-        input.setText(prefs.getString("playlist_url", ""));
-        content.addView(input);
+        urlInput = new EditText(this);
+        urlInput.setSingleLine(true);
+        urlInput.setHint("https://...");
+        urlInput.setTextColor(WHITE);
+        urlInput.setHintTextColor(MUTED);
+        urlInput.setPadding(14, 12, 14, 12);
+        urlInput.setBackground(shape(PANEL, 12));
 
-        Button load = button("Listeyi Yükle");
+        content.addView(urlInput);
+
+        TextView load = actionButton("Listeyi Yükle");
         content.addView(load);
 
         load.setOnClickListener(v -> {
-            String address = input.getText().toString().trim();
+            String address =
+                urlInput.getText().toString().trim();
 
-            if (!address.startsWith("http://") &&
-                !address.startsWith("https://")) {
-                Toast.makeText(this, "Geçerli bağlantı girin",
+            if (!address.startsWith("https://") &&
+                !address.startsWith("http://")) {
+                Toast.makeText(this,
+                    "Geçerli bağlantı girin",
                     Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -138,21 +194,9 @@ public class MainActivity extends Activity {
         });
     }
 
-    String normalizeUrl(String address) {
-        if (address.contains("github.com/") &&
-            address.contains("/blob/")) {
-            return address.replace(
-                "https://github.com/",
-                "https://raw.githubusercontent.com/"
-            ).replace("/blob/", "/");
-        }
-        return address;
-    }
-
     void loadPlaylist(String address) {
-        final String urlAddress = normalizeUrl(address);
-
-        Toast.makeText(this, "Liste yükleniyor...",
+        Toast.makeText(this,
+            "Kanallar yükleniyor...",
             Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
@@ -161,59 +205,50 @@ public class MainActivity extends Activity {
             HttpURLConnection conn = null;
 
             try {
-                conn = (HttpURLConnection)
-                    new URL(urlAddress).openConnection();
+                URL url = new URL(address);
+                conn = (HttpURLConnection) url.openConnection();
 
                 conn.setConnectTimeout(15000);
                 conn.setReadTimeout(15000);
-                conn.setRequestProperty("User-Agent", "BOGAR-TV/1.0");
+                conn.setRequestProperty("User-Agent", "BOGAR-TV");
 
-                if (conn.getResponseCode() != 200) {
-                    throw new IOException("Sunucu bağlantı hatası");
-                }
-
-                try (BufferedReader reader = new BufferedReader(
+                BufferedReader reader = new BufferedReader(
                     new InputStreamReader(
-                        conn.getInputStream(), "UTF-8"))) {
+                        conn.getInputStream(), "UTF-8"));
 
-                    String line;
-                    String currentName = "Kanal";
+                String line;
+                String currentName = "";
 
-                    while ((line = reader.readLine()) != null) {
-                        line = line.trim();
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
 
-                        if (line.startsWith("#EXTINF")) {
-                            int comma = line.lastIndexOf(",");
-                            if (comma >= 0) {
-                                currentName =
-                                    line.substring(comma + 1).trim();
-                            }
-                        } else if (
-                            line.startsWith("http://") ||
-                            line.startsWith("https://")) {
+                    if (line.startsWith("#EXTINF")) {
+                        int comma = line.lastIndexOf(",");
+                        currentName = comma >= 0
+                            ? line.substring(comma + 1).trim()
+                            : "Kanal";
 
-                            newNames.add(currentName);
-                            newLinks.add(line);
-                            currentName = "Kanal";
+                    } else if (
+                        line.startsWith("http://") ||
+                        line.startsWith("https://")) {
 
-                            if (newNames.size() >= 1000) break;
-                        }
+                        newNames.add(currentName.isEmpty()
+                            ? "Kanal" : currentName);
+
+                        newLinks.add(line);
+                        currentName = "";
+
+                        if (newNames.size() >= 1000) break;
                     }
                 }
 
-                if (newNames.isEmpty()) {
-                    throw new IOException("Kanal bulunamadı");
-                }
+                reader.close();
 
                 runOnUiThread(() -> {
                     names.clear();
                     links.clear();
                     names.addAll(newNames);
                     links.addAll(newLinks);
-
-                    prefs.edit()
-                        .putString("playlist_url", urlAddress)
-                        .apply();
 
                     Toast.makeText(this,
                         names.size() + " kanal yüklendi",
@@ -223,10 +258,9 @@ public class MainActivity extends Activity {
                 });
 
             } catch (Exception e) {
-                String error = e.getMessage();
                 runOnUiThread(() ->
                     Toast.makeText(this,
-                        "Hata: " + error,
+                        "Liste yüklenemedi: " + e.getMessage(),
                         Toast.LENGTH_LONG).show());
             } finally {
                 if (conn != null) conn.disconnect();
@@ -236,121 +270,102 @@ public class MainActivity extends Activity {
 
     void showChannels(boolean onlyFavorites) {
         if (names.isEmpty()) {
-            content.addView(text(
+            content.addView(label(
                 "Henüz kanal yok.\nListeler bölümünden M3U ekleyin.",
-                16));
+                16, MUTED));
             return;
         }
 
-        if (!onlyFavorites) {
-            EditText search = new EditText(this);
-            search.setSingleLine(true);
-            search.setHint("Kanal ara...");
-            search.setTextColor(Color.WHITE);
-            search.setHintTextColor(Color.LTGRAY);
-            content.addView(search);
+        for (int i = 0; i < names.size(); i++) {
+            final int index = i;
+            String name = names.get(i);
 
-            LinearLayout list = new LinearLayout(this);
-            list.setOrientation(LinearLayout.VERTICAL);
-            content.addView(list);
+            if (onlyFavorites && !favorites.contains(name))
+                continue;
 
-            Runnable refresh = () -> {
-                list.removeAllViews();
-                String query = search.getText().toString()
-                    .toLowerCase(Locale.ROOT);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setBackground(shape(PANEL, 12));
+            row.setPadding(6, 4, 6, 4);
 
-                for (int i = 0; i < names.size(); i++) {
-                    if (names.get(i).toLowerCase(Locale.ROOT)
-                        .contains(query)) {
-                        addChannelRow(list, i);
-                    }
+            TextView play = label("▶  " + name, 15, WHITE);
+
+            row.addView(play,
+                new LinearLayout.LayoutParams(0, -2, 1));
+
+            play.setOnClickListener(v -> {
+                try {
+                    Intent intent = new Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse(links.get(index)));
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Toast.makeText(this,
+                        "Video oynatıcı bulunamadı",
+                        Toast.LENGTH_SHORT).show();
                 }
-            };
-
-            search.addTextChangedListener(new TextWatcher() {
-                public void beforeTextChanged(
-                    CharSequence s, int start, int count, int after) {}
-
-                public void onTextChanged(
-                    CharSequence s, int start, int before, int count) {
-                    refresh.run();
-                }
-
-                public void afterTextChanged(Editable s) {}
             });
 
-            refresh.run();
+            TextView fav = label(
+                favorites.contains(name) ? "★" : "☆",
+                23, GOLD);
 
-        } else {
-            LinearLayout list = new LinearLayout(this);
-            list.setOrientation(LinearLayout.VERTICAL);
-            content.addView(list);
+            row.addView(fav);
 
-            for (int i = 0; i < names.size(); i++) {
-                if (favorites.contains(names.get(i))) {
-                    addChannelRow(list, i);
+            fav.setOnClickListener(v -> {
+                if (favorites.contains(name)) {
+                    favorites.remove(name);
+                } else {
+                    favorites.add(name);
                 }
-            }
 
-            if (list.getChildCount() == 0) {
-                content.addView(text("Henüz favori kanal yok.", 16));
-            }
+                saveFavorites();
+                showPage(currentPage);
+            });
+
+            LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(-1, -2);
+
+            params.setMargins(0, 5, 0, 5);
+            content.addView(row, params);
         }
     }
 
-    void addChannelRow(LinearLayout list, int index) {
-        String name = names.get(index);
+    TextView actionButton(String title) {
+        TextView b = label(title, 16, WHITE);
+        b.setGravity(Gravity.CENTER);
+        b.setTypeface(null, Typeface.BOLD);
+        b.setBackground(shape(GOLD, 12));
+        b.setPadding(16, 14, 16, 14);
 
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setBackgroundColor(PANEL);
-        list.addView(row);
+        LinearLayout.LayoutParams p =
+            new LinearLayout.LayoutParams(-1, -2);
 
-        Button play = button("▶ " + name);
-        row.addView(play,
-            new LinearLayout.LayoutParams(0, -2, 1));
+        p.setMargins(0, 12, 0, 12);
+        b.setLayoutParams(p);
 
-        play.setOnClickListener(v -> {
-            try {
-                Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(links.get(index)));
-                startActivity(intent);
-            } catch (Exception e) {
-                Toast.makeText(this,
-                    "Video oynatıcı bulunamadı",
-                    Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        Button fav = button(
-            favorites.contains(name) ? "★" : "☆");
-
-        row.addView(fav);
-
-        fav.setOnClickListener(v -> {
-            if (favorites.contains(name)) {
-                favorites.remove(name);
-            } else {
-                favorites.add(name);
-            }
-
-            prefs.edit()
-                .putStringSet("favorites", new HashSet<>(favorites))
-                .apply();
-
-            showPage("Favoriler");
-        });
+        return b;
     }
 
     void showSettings() {
-        content.addView(text(
-            "BOGAR TV\n\n" +
-            "Sürüm: 1.0\n\n" +
-            "Dört sekmeli televizyon uygulaması.\n\n" +
-            "GitHub RAW ve M3U liste desteği.\n\n" +
-            "Favori kanal kaydetme.\n" +
-            "Kanal arama özelliği.",
-            17));
+        content.addView(label("BOGAR TV", 25, GOLD));
+
+        content.addView(label(
+            "Sürüm: 1.1\n\n" +
+            "GitHub RAW / M3U desteği\n" +
+            "Dört sekmeli arayüz\n" +
+            "Favori kanal sistemi\n" +
+            "Harici video oynatıcı desteği",
+            15, MUTED));
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!currentPage.equals("Kanallar")) {
+            showPage("Kanallar");
+        } else {
+            super.onBackPressed();
+        }
     }
 }
